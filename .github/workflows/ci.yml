@@ -47,9 +47,16 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
-          cache-dependency-path: frontend/package.json
-      - run: npm install
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
         working-directory: frontend
+      - name: Audit (fail on high+)
+        run: npm audit --audit-level=high
+        working-directory: frontend
+      - name: Verify package provenance signatures
+        run: npm audit signatures
+        working-directory: frontend
+        continue-on-error: true
       - run: npm run lint || true
         working-directory: frontend
       - run: npm run build
@@ -63,9 +70,16 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: frontend/package.json
-      - run: npm install
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
         working-directory: frontend
+      - name: Audit (fail on high+)
+        run: npm audit --audit-level=high
+        working-directory: frontend
+      - name: Verify package provenance signatures
+        run: npm audit signatures
+        working-directory: frontend
+        continue-on-error: true
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
         working-directory: frontend

@@ -2,7 +2,12 @@
 
 install:
 	uv sync --all-extras
-	cd frontend && npm install
+	cd frontend && npm ci
+
+audit:
+	cd frontend && npm audit --audit-level=high
+	cd frontend && npm audit signatures
+	uv run pip-audit || true
 
 dev:
 	@./scripts/run-dev.sh
