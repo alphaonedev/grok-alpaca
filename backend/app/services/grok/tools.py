@@ -19,8 +19,10 @@ from typing import Any, Awaitable, Callable, Literal, Protocol
 import pandas as pd
 from pydantic import BaseModel, Field
 
+from app.services.alpaca import crypto as alpaca_crypto
 from app.services.alpaca import historical as alpaca_hist
 from app.services.alpaca import news as alpaca_news
+from app.services.alpaca import options as alpaca_options
 from app.services.analysis import indicators as ind
 from app.services.analysis import screeners
 from app.services.analysis import stats as st
@@ -131,6 +133,23 @@ class MakeReportArgs(BaseModel):
     format: Literal["html", "pdf", "xlsx", "pptx", "md"]
     title: str
     sections: list[ReportSection]
+
+
+class GetOptionChainArgs(BaseModel):
+    underlying: str = Field(..., description="Underlying ticker, e.g. 'AAPL'")
+    expiration_date: str | None = Field(
+        None, description="Optional YYYY-MM-DD expiration filter"
+    )
+
+
+class GetCryptoBarsArgs(BaseModel):
+    symbol: str = Field(..., description="Crypto pair, e.g. 'BTC/USD'")
+    timeframe: Timeframe = "1Day"
+    lookback: str = Field("90d", description="e.g. '30d', '6mo', '1y'")
+
+
+class GetCryptoQuoteArgs(BaseModel):
+    symbol: str = Field(..., description="Crypto pair, e.g. 'BTC/USD'")
 
 
 # ---------------------------------------------------------------------------
@@ -267,6 +286,68 @@ async def _run_render_markdown(args: RenderMarkdownArgs) -> ToolResult:
     )
 
 
+def _contract_sort_key(entry: dict) -> float:
+    """Prefer open_interest, fall back to implied_volatility; missing -> -inf."""
+    oi = entry.get("open_interest")
+    if isinstance(oi, (int, float)):
+        return float(oi)
+    iv = entry.get("implied_volatility")
+    if isinstance(iv, (int, float)):
+        return float(iv)
+    return float("-inf")
+
+
+async def _run_get_option_chain(args: GetOptionChainArgs) -> ToolResult:
+    chain = await alpaca_options.get_option_chain(
+        args.underlying, expiration_date=args.expiration_date
+    )
+    contracts = list(chain.values())
+    contracts.sort(key=_contract_sort_key, reverse=True)
+    top = contracts[:25]
+    return ToolResult(
+        content={
+            "underlying": args.underlying,
+            "expiration_date": args.expiration_date,
+            "total": len(chain),
+            "returned": len(top),
+            "sort_key": "open_interest_or_iv",
+            "contracts": top,
+        }
+    )
+
+
+async def _run_get_crypto_bars(args: GetCryptoBarsArgs) -> ToolResult:
+    df = await alpaca_crypto.get_crypto_bars(
+        args.symbol, timeframe=args.timeframe, lookback=args.lookback
+    )
+    bars = _bars_payload(df, args.symbol)
+    summary = {
+        "symbol": args.symbol,
+        "timeframe": args.timeframe,
+        "lookback": args.lookback,
+        "count": len(bars),
+        "first": bars[0] if bars else None,
+        "last": bars[-1] if bars else None,
+    }
+    side = [
+        SideEffect(
+            type="chart",
+            data={
+                "kind": "candle",
+                "title": f"{args.symbol} {args.timeframe} ({args.lookback})",
+                "symbol": args.symbol,
+                "bars": bars,
+            },
+        )
+    ]
+    return ToolResult(content=summary, side_effects=side)
+
+
+async def _run_get_crypto_quote(args: GetCryptoQuoteArgs) -> ToolResult:
+    q = await alpaca_crypto.get_crypto_latest_quote(args.symbol)
+    return ToolResult(content=q)
+
+
 async def _run_make_report(args: MakeReportArgs) -> ToolResult:
     # Defer to reports/store.py to materialize. Imported lazily to break import cycles.
     from app.services.reports import store
@@ -355,6 +436,28 @@ TOOLS: dict[str, _ToolImpl] = {
         description="Generate a downloadable report artifact (html/pdf/xlsx/pptx/md). Use when the user asks for a report or one-pager.",
         args_schema=MakeReportArgs,
         run=_run_make_report,
+    ),
+    "get_option_chain": _ToolImpl(
+        name="get_option_chain",
+        description=(
+            "Fetch the option chain for an underlying ticker. Returns up to 25 contracts "
+            "ranked by open_interest (or implied_volatility when open_interest is unavailable). "
+            "Optionally filter by expiration_date (YYYY-MM-DD)."
+        ),
+        args_schema=GetOptionChainArgs,
+        run=_run_get_option_chain,
+    ),
+    "get_crypto_bars": _ToolImpl(
+        name="get_crypto_bars",
+        description="Fetch OHLCV bars for a crypto pair (e.g. 'BTC/USD'). Emits a candle chart side-effect.",
+        args_schema=GetCryptoBarsArgs,
+        run=_run_get_crypto_bars,
+    ),
+    "get_crypto_quote": _ToolImpl(
+        name="get_crypto_quote",
+        description="Latest bid/ask quote for a crypto pair (e.g. 'BTC/USD').",
+        args_schema=GetCryptoQuoteArgs,
+        run=_run_get_crypto_quote,
     ),
 }
 

@@ -6,8 +6,10 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
+from app.services.alpaca import crypto as crypto_data
 from app.services.alpaca import historical as hist
 from app.services.alpaca import market_clock, news
+from app.services.alpaca import options as options_data
 
 router = APIRouter()
 
@@ -57,3 +59,73 @@ async def get_clock() -> dict:
 async def get_news(symbol: str | None = None, limit: int = 20, lookback: str = "7d") -> dict:
     items = await news.get_news(symbol=symbol, limit=limit, lookback=lookback)
     return {"count": len(items), "items": items}
+
+
+# ---------------------------------------------------------------------------
+# Options
+# ---------------------------------------------------------------------------
+
+
+@router.get("/options/chain")
+async def get_options_chain(
+    underlying: str = Query(..., description="Underlying ticker, e.g. AAPL"),
+    expiration: str | None = Query(None, description="Optional YYYY-MM-DD expiration filter"),
+) -> dict[str, Any]:
+    try:
+        chain = await options_data.get_option_chain(underlying, expiration_date=expiration)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {
+        "underlying": underlying,
+        "expiration": expiration,
+        "count": len(chain),
+        "contracts": chain,
+    }
+
+
+@router.get("/options/bars")
+async def get_options_bars(
+    symbol: str = Query(..., description="OCC option contract symbol"),
+    timeframe: str = Query("1Day"),
+    lookback: str = Query("30d"),
+    limit: int | None = None,
+) -> dict[str, Any]:
+    df = await options_data.get_option_bars(
+        symbol, timeframe=timeframe, lookback=lookback, limit=limit
+    )
+    return {
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "lookback": lookback,
+        "count": int(df.shape[0]),
+        "bars": hist.bars_to_records(df),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Crypto
+# ---------------------------------------------------------------------------
+
+
+@router.get("/crypto/bars")
+async def get_crypto_bars(
+    symbol: str = Query(..., description="Crypto pair, e.g. BTC/USD"),
+    timeframe: str = Query("1Day"),
+    lookback: str = Query("90d"),
+    limit: int | None = None,
+) -> dict[str, Any]:
+    df = await crypto_data.get_crypto_bars(
+        symbol, timeframe=timeframe, lookback=lookback, limit=limit
+    )
+    return {
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "lookback": lookback,
+        "count": int(df.shape[0]),
+        "bars": hist.bars_to_records(df),
+    }
+
+
+@router.get("/crypto/quote/{symbol:path}")
+async def get_crypto_quote(symbol: str) -> dict:
+    return await crypto_data.get_crypto_latest_quote(symbol)
