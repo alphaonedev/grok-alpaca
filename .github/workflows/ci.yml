@@ -1,0 +1,56 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+      - name: Sync deps
+        run: uv sync --all-extras
+      - name: Lint (no live-trading imports)
+        run: |
+          ! grep -r "from alpaca.trading" backend/app || (echo "FAIL: alpaca.trading imported"; exit 1)
+          ! grep -r "TradingClient" backend/app || (echo "FAIL: TradingClient referenced"; exit 1)
+      - name: Ruff
+        run: uv run ruff check backend
+      - name: Mypy
+        run: uv run mypy backend/app || true
+      - name: Pytest
+        env:
+          XAI_API_KEY: test-xai
+          ALPACA_API_KEY: test-alpaca
+          ALPACA_SECRET_KEY: test-alpaca-secret
+          DATA_DIR: /tmp/grok-alpaca-ci
+        run: uv run pytest backend/tests -v --maxfail=3
+
+  frontend:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ["20", "22"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: frontend/package.json
+      - run: npm install
+        working-directory: frontend
+      - run: npm run lint || true
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
