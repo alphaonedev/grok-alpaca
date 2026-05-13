@@ -28,5 +28,8 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
+    // Scope to vitest unit tests; playwright e2e specs live under tests/e2e/
+    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    exclude: ["node_modules", "dist", "tests/e2e/**"],
   },
 });

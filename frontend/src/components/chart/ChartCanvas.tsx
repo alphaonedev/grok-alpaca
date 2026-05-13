@@ -1,6 +1,7 @@
 import { useDashboardStore } from "@/stores/dashboard";
 import { useBars, useSnapshot } from "@/api/hooks";
 import { CandleChart } from "./CandleChart";
+import { SnapshotPanel } from "@/components/snapshot/SnapshotPanel";
 import { cn } from "@/lib/cn";
 
 const TIMEFRAMES = ["1Min", "5Min", "15Min", "1Hour", "1Day", "1Week"] as const;
@@ -67,6 +68,9 @@ export function ChartCanvas() {
         ) : (
           <CandleChart bars={bars.data?.bars ?? []} />
         )}
+      </div>
+      <div className="border-t border-bg-line bg-bg-panel/40 h-24 overflow-hidden">
+        <SnapshotPanel symbol={activeSymbol} />
       </div>
     </div>
   );

@@ -18,6 +18,7 @@
     "isolatedModules": true,
     "useDefineForClassFields": true,
     "verbatimModuleSyntax": false,
+    "noEmit": true,
     "baseUrl": ".",
     "paths": { "@/*": ["src/*"] }
   },
