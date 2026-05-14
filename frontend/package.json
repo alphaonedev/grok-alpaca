@@ -50,7 +50,7 @@
   },
   "devDependencies": {
     "@lavamoat/allow-scripts": "5.0.2",
-    "@lavamoat/preinstall-always-fail": "2.1.0",
+    "@lavamoat/preinstall-always-fail": "3.0.0",
     "@playwright/test": "1.60.0",
     "@testing-library/react": "16.3.2",
     "@types/node": "22.19.19",
