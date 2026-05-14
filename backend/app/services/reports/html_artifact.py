@@ -33,7 +33,17 @@ def build_html(title: str, sections: list[dict]) -> str:
           <meta charset="utf-8">
           <title>{html.escape(title)}</title>
           <meta name="viewport" content="width=device-width, initial-scale=1">
-          <script src="https://cdn.plot.ly/plotly-2.35.0.min.js"></script>
+          <!--
+            Subresource Integrity (SRI) pin for the Plotly CDN.
+            sha384 computed from cdn.plot.ly/plotly-2.35.0.min.js on 2026-05-13.
+            If the CDN is ever compromised, the browser will refuse to execute
+            the script. See SECURITY.md.
+          -->
+          <script
+            src="https://cdn.plot.ly/plotly-2.35.0.min.js"
+            integrity="sha384-TAqBiqItCr14J//ULLD26bSQ8Z6uPnlisSwkvWaqP8SCSiDkgR8jNknuAv8uxSOT"
+            crossorigin="anonymous"
+            referrerpolicy="no-referrer"></script>
           <style>
             :root {{ color-scheme: dark; }}
             html, body {{ background: #0b1220; color: #e6edf7; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Arial, sans-serif; line-height: 1.55; }}

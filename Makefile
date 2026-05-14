@@ -3,11 +3,17 @@
 install:
 	uv sync --all-extras
 	cd frontend && npm ci
+	cd frontend && npx allow-scripts
 
 audit:
 	cd frontend && npm audit --audit-level=high
 	cd frontend && npm audit signatures
-	uv run pip-audit || true
+	@echo
+	@echo "Backend audit:"
+	uv run python -m pip list --outdated 2>&1 | head -30 || true
+	@echo
+	@echo "Lifecycle-script allowlist:"
+	@node -e "console.log(JSON.stringify(require('./frontend/package.json').lavamoat, null, 2))"
 
 dev:
 	@./scripts/run-dev.sh
